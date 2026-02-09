@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}{{ paper.title }} - Herbert Simon Papers{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <p style="margin-bottom: 20px;">
+        <a href="{{ url_prefix }}/" style="color: var(--primary); text-decoration: none;">← Back to search</a>
+    </p>
+
+    <div class="result-card">
+        <h1 style="font-size: 1.5rem; margin-bottom: 20px; line-height: 1.4;">{{ paper.title }}</h1>
+
+        <table style="width: 100%; border-collapse: collapse;">
+            {% if paper.date %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border); width: 120px;">Date</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">{{ paper.date }}</td>
+            </tr>
+            {% endif %}
+
+            {% if paper.series %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Series</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <a href="{{ url_prefix }}/?series={{ paper.series|urlencode }}" style="color: var(--primary);">{{ paper.series }}</a>
+                </td>
+            </tr>
+            {% endif %}
+
+            {% if paper.item_type %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Type</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <a href="{{ url_prefix }}/?type={{ paper.item_type|urlencode }}" style="color: var(--primary);">{{ paper.item_type }}</a>
+                </td>
+            </tr>
+            {% endif %}
+
+            {% if paper.box_number %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Archive Location</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <a href="{{ url_prefix }}/?box={{ paper.box_number }}&sort=archive_order&order=ASC" style="color: var(--primary);">Box {{ paper.box_number }}</a>,
+                    <a href="{{ url_prefix }}/?box={{ paper.box_number }}&folder={{ paper.folder_number }}&sort=archive_order&order=ASC" style="color: var(--primary);">Folder {{ paper.folder_number }}</a>
+                    {% if paper.bundle_number %} Bundle {{ paper.bundle_number }}{% endif %}{% if paper.document_number %} #{{ paper.document_number }}{% endif %}
+                </td>
+            </tr>
+            {% endif %}
+
+            {% if paper.box_number and paper.folder_number and paper.bundle_number and paper.document_number %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">PDF</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <a href="http://iiif.library.cmu.edu/file/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}.pdf" target="_blank" style="color: var(--primary);">View PDF →</a>
+                </td>
+            </tr>
+            {% endif %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Source</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <a href="{{ paper.url }}" target="_blank" style="color: var(--primary);">View on CMU.edu →</a>
+                </td>
+            </tr>
+
+            {% if paper.summary %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Summary</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    {{ paper.summary }}
+                    {% if paper.analysis_model %}
+                    <span class="model-badge model-{{ paper.analysis_model }}">{{ paper.analysis_model }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
+
+            {% if paper.language %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border);">Language</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">{{ paper.language }}</td>
+            </tr>
+            {% endif %}
+
+            {% if paper.tags %}
+            <tr>
+                <th style="text-align: left; padding: 10px 20px 10px 0; border-bottom: 1px solid var(--border); vertical-align: top;">Tags</th>
+                <td style="padding: 10px 0; border-bottom: 1px solid var(--border);">
+                    <div class="paper-tags">
+                        {% for tag in paper.tags | fromjson %}
+                        <a href="{{ url_prefix }}/?tag={{ tag|urlencode }}" class="tag-link">{{ tag }}</a>
+                        {% endfor %}
+                    </div>
+                </td>
+            </tr>
+            {% endif %}
+
+        </table>
+
+        {% if paper.thumbnail_url %}
+        <div style="margin-top: 20px;">
+            <img src="{{ paper.thumbnail_url }}" alt="Thumbnail" style="max-width: 300px; border: 1px solid var(--border); border-radius: 4px;">
+        </div>
+        {% endif %}
+    </div>
+
+    {% if paper.text_content or paper.local_pdf_path %}
+    <div class="result-card" style="margin-top: 20px;">
+        <h2 style="font-size: 1.1rem; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+            Extracted Text
+            <span style="display: flex; align-items: center; gap: 15px;">
+                {% if paper.text_content %}
+                <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">{{ paper.text_content|length }} characters</span>
+                {% endif %}
+                {% if paper.local_pdf_path %}
+                <button class="reocr-btn" onclick="reOCR({{ paper.id }})" id="reocr-btn">
+                    Re-OCR
+                </button>
+                {% endif %}
+            </span>
+        </h2>
+        <div id="ocr-status" style="display: none; margin-bottom: 15px; padding: 10px; border-radius: 4px;"></div>
+        {% if paper.text_content %}
+        <div class="full-text-content" style="display: block; max-height: 600px;" id="text-content">
+            <pre>{{ paper.text_content }}</pre>
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted);" id="no-text-msg">No text extracted yet. Click "Re-OCR" to extract text from the PDF.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if related and (related.same_folder or related.shared_tags) %}
+    <div class="result-card" style="margin-top: 20px;">
+        <h2 style="font-size: 1.1rem; margin-bottom: 15px;">Related Papers</h2>
+
+        {% if related.same_folder %}
+        <div class="related-section">
+            <h3 class="section-title folder-title">Same Folder (Box {{ paper.box_number }}, Folder {{ paper.folder_number }})</h3>
+            <div class="related-items">
+                {% for p in related.same_folder[:5] %}
+                <div class="related-item">
+                    <div class="related-item-header">
+                        <a href="{{ url_prefix }}/paper/{{ p.id }}" class="related-item-title">{{ p.title }}</a>
+                        {% if p.date %}<span class="related-date">{{ p.date }}</span>{% endif %}
+                    </div>
+                    {% if p.summary %}
+                    <p class="related-item-summary">{{ p.summary }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if related.same_folder|length > 5 %}
+                <div class="more-link">
+                    <a href="{{ url_prefix }}/?box={{ paper.box_number }}&folder={{ paper.folder_number }}&sort=archive_order&order=ASC">View all {{ related.same_folder|length }} papers in this folder →</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if related.shared_tags %}
+        <div class="related-section">
+            <h3 class="section-title tags-title">Shared Topics</h3>
+            <div class="related-items">
+                {% for p in related.shared_tags[:5] %}
+                <div class="related-item">
+                    <div class="related-item-header">
+                        <a href="{{ url_prefix }}/paper/{{ p.id }}" class="related-item-title">{{ p.title }}</a>
+                    </div>
+                    {% if p.shared_tags %}
+                    <div class="shared-tags-list">
+                        {% for tag in p.shared_tags %}
+                        <a href="{{ url_prefix }}/?tag={{ tag|urlencode }}" class="tag-link">{{ tag }}</a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if p.summary %}
+                    <p class="related-item-summary">{{ p.summary }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .reocr-btn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .reocr-btn:hover:not(:disabled) {
+        background: var(--primary-dark);
+    }
+    .reocr-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .related-section {
+        margin-bottom: 20px;
+    }
+    .related-section:last-child {
+        margin-bottom: 0;
+    }
+    .section-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid;
+    }
+    .folder-title { border-color: #6b4c9a; color: #6b4c9a; }
+    .tags-title { border-color: #2e7d32; color: #2e7d32; }
+
+    .related-items {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .related-item {
+        padding: 10px 12px;
+        background: var(--bg);
+        border-radius: 6px;
+        border-left: 3px solid var(--border);
+    }
+    .folder-title ~ .related-items .related-item { border-left-color: #6b4c9a; }
+    .tags-title ~ .related-items .related-item { border-left-color: #2e7d32; }
+
+    .related-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .related-item-title {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    .related-item-title:hover {
+        text-decoration: underline;
+    }
+    .related-date {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        white-space: nowrap;
+    }
+    .shared-tags-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 6px;
+    }
+    .related-item-summary {
+        margin: 6px 0 0 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+    .more-link {
+        margin-top: 8px;
+    }
+    .more-link a {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-decoration: none;
+    }
+    .more-link a:hover {
+        color: var(--primary);
+        text-decoration: underline;
+    }
+</style>
+
+<script>
+const urlPrefix = '{{ url_prefix }}';
+async function reOCR(paperId) {
+    const btn = document.getElementById('reocr-btn');
+    const statusDiv = document.getElementById('ocr-status');
+
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+    statusDiv.style.display = 'block';
+    statusDiv.style.background = '#e3f2fd';
+    statusDiv.style.color = '#1565c0';
+    statusDiv.textContent = 'Running OCR on PDF... This may take a moment.';
+
+    try {
+        const response = await fetch(`${urlPrefix}/api/reocr/${paperId}`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            statusDiv.style.background = '#e8f5e9';
+            statusDiv.style.color = '#2e7d32';
+            statusDiv.textContent = `OCR completed! Method: ${data.method}, extracted ${data.text_length} characters. Refreshing page...`;
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            statusDiv.style.background = '#ffebee';
+            statusDiv.style.color = '#c62828';
+            statusDiv.textContent = `Error: ${data.error}`;
+            btn.disabled = false;
+            btn.textContent = 'Re-OCR';
+        }
+    } catch (error) {
+        statusDiv.style.background = '#ffebee';
+        statusDiv.style.color = '#c62828';
+        statusDiv.textContent = `Error: ${error.message}`;
+        btn.disabled = false;
+        btn.textContent = 'Re-OCR';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="main-layout">
+    <aside class="sidebar">
+        <p style="margin-bottom: 15px;">
+            <a href="{{ url_prefix }}/archive" style="color: var(--primary); text-decoration: none; font-weight: 600;">Browse by Archive →</a>
+        </p>
+
+        <h3>Series</h3>
+        <ul>
+            {% for s, count in facets.series %}
+            <li>
+                <a href="?series={{ s|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if item_type %}&type={{ item_type|urlencode }}{% endif %}{% if box_str %}&box={{ box_str }}{% endif %}"
+                   {% if series == s %}class="active"{% endif %}>
+                    <span>{{ s }}</span>
+                    <span class="count">{{ count }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <h3>Item Type</h3>
+        <ul>
+            {% for t, count in facets.item_types[:10] %}
+            <li>
+                <a href="?type={{ t|urlencode }}{% if query %}&q={{ query|urlencode }}{% endif %}{% if series %}&series={{ series|urlencode }}{% endif %}{% if box_str %}&box={{ box_str }}{% endif %}"
+                   {% if item_type == t %}class="active"{% endif %}>
+                    <span>{{ t }}</span>
+                    <span class="count">{{ count }}</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+
+        {% if facets.total > 0 %}
+        <h3>Collection Stats</h3>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">
+            {{ facets.total }} total items<br>
+            {% if facets.years %}
+            {{ facets.years[0][0] }} - {{ facets.years[-1][0] }}
+            {% endif %}
+            {% if facets.boxes %}
+            <br>{{ facets.boxes|length }} boxes
+            {% endif %}
+        </p>
+        {% endif %}
+
+        <div class="search-cheatsheet">
+            <h3>Search Help</h3>
+            {% if search_mode == 'fuzzy' %}
+            <div class="cheatsheet-content">
+                <p><strong>Fuzzy Search</strong></p>
+                <p>Matches partial words and substrings.</p>
+                <ul>
+                    <li><code>simn</code> finds "Simon"</li>
+                    <li><code>psych</code> finds "psychology", "psychiatric"</li>
+                    <li>Multiple words: any match counts</li>
+                </ul>
+            </div>
+            {% elif search_mode == 'regex' %}
+            <div class="cheatsheet-content">
+                <p><strong>Regex Search</strong></p>
+                <p>Use regular expressions.</p>
+                <ul>
+                    <li><code>simon.*newell</code> - Simon followed by Newell</li>
+                    <li><code>^Dear</code> - starts with "Dear"</li>
+                    <li><code>19[56]0</code> - 1950 or 1960</li>
+                    <li><code>\bAI\b</code> - whole word "AI"</li>
+                </ul>
+            </div>
+            {% else %}
+            <div class="cheatsheet-content">
+                <p><strong>Boolean Search</strong></p>
+                <ul>
+                    <li><code>simon newell</code> - both words (implicit AND)</li>
+                    <li><code>simon OR newell</code> - either word</li>
+                    <li><code>simon NOT chess</code> - exclude "chess"</li>
+                    <li><code>"bounded rationality"</code> - exact phrase</li>
+                    <li><code>(AI OR artificial) AND intelligence</code> - grouping</li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="search-box">
+            <form method="get" action="{{ url_prefix }}/" class="search-form">
+                <input type="text" name="q" class="search-input" placeholder="Search... (AND, OR, NOT, &quot;phrases&quot;)" value="{{ query }}">
+                <select name="mode" class="search-mode-select" title="Search mode">
+                    <option value="normal" {% if search_mode == 'normal' %}selected{% endif %}>Boolean</option>
+                    <option value="fuzzy" {% if search_mode == 'fuzzy' %}selected{% endif %}>Fuzzy</option>
+                    <option value="regex" {% if search_mode == 'regex' %}selected{% endif %}>Regex</option>
+                </select>
+                <button type="submit" class="search-btn">Search</button>
+            </form>
+
+            <div class="filters">
+                <select name="series" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="">All Series</option>
+                    {% for s, count in facets.series %}
+                    <option value="{{ s }}" {% if series == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="box" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="">All Boxes</option>
+                    {% for box, count in facets.boxes %}
+                    <option value="{{ box }}" {% if box_number == box %}selected{% endif %}>Box {{ box }} ({{ count }})</option>
+                    {% endfor %}
+                </select>
+
+                {% if folders_for_box %}
+                <select name="folder" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="">All Folders</option>
+                    {% for folder, count in folders_for_box %}
+                    <option value="{{ folder }}" {% if folder_number == folder %}selected{% endif %}>Folder {{ folder }} ({{ count }})</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+
+                <select name="model" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="">All Models</option>
+                    {% for m, count in facets.models %}
+                    <option value="{{ m }}" {% if analysis_model == m %}selected{% endif %}>{{ m }} ({{ count }})</option>
+                    {% endfor %}
+                </select>
+
+                <select name="lang" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="">All Languages</option>
+                    {% for l, count in facets.languages %}
+                    <option value="{{ l }}" {% if language == l %}selected{% endif %}>{{ l }} ({{ count }})</option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" name="from" class="filter-input" placeholder="From (YYYY)" value="{{ date_from }}" form="filter-form">
+                <input type="text" name="to" class="filter-input" placeholder="To (YYYY)" value="{{ date_to }}" form="filter-form">
+
+                <button type="submit" class="search-btn" form="filter-form" style="padding: 8px 16px;">Apply</button>
+
+                {% if query or series or item_type or date_from or date_to or box_str or folder_str or analysis_model or language or tags %}
+                <a href="{{ url_prefix }}/" class="clear-filters">Clear all</a>
+                {% endif %}
+            </div>
+
+            <form id="filter-form" method="get" action="{{ url_prefix }}/" style="display: none;">
+                {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+                {% if item_type %}<input type="hidden" name="type" value="{{ item_type }}">{% endif %}
+                {% if sort_by %}<input type="hidden" name="sort" value="{{ sort_by }}">{% endif %}
+                {% if sort_order %}<input type="hidden" name="order" value="{{ sort_order }}">{% endif %}
+                {% if search_mode and search_mode != 'normal' %}<input type="hidden" name="mode" value="{{ search_mode }}">{% endif %}
+                {% for t in tags %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
+            </form>
+        </div>
+
+        {% if query or series or item_type or date_from or date_to or box_str or folder_str or analysis_model or language or tags or (search_mode and search_mode != 'normal') %}
+        <div class="active-filters">
+            {% if query %}
+            <span class="active-filter">
+                Search: "{{ query }}"{% if search_mode == 'fuzzy' %} (fuzzy){% elif search_mode == 'regex' %} (regex){% endif %}
+                <a href="?{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% for t in tags %}
+            <span class="active-filter" style="background: #2e7d32;">
+                Tag: {{ t }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t2 in tags %}{% if t2 != t %}tag={{ t2|urlencode }}&{% endif %}{% endfor %}">×</a>
+            </span>
+            {% endfor %}
+            {% if series %}
+            <span class="active-filter">
+                Series: {{ series }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if box_str %}
+            <span class="active-filter">
+                Box: {{ box_str }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if folder_str %}
+            <span class="active-filter">
+                Folder: {{ folder_str }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if item_type %}
+            <span class="active-filter">
+                Type: {{ item_type }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if analysis_model %}
+            <span class="active-filter" style="background: #1a73e8;">
+                Model: {{ analysis_model }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if language %}
+            <span class="active-filter" style="background: #ff9800;">
+                Language: {{ language }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if date_from %}from={{ date_from }}&{% endif %}{% if date_to %}to={{ date_to }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+            {% if date_from or date_to %}
+            <span class="active-filter">
+                Date: {{ date_from or '...' }} - {{ date_to or '...' }}
+                <a href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if series %}series={{ series|urlencode }}&{% endif %}{% if item_type %}type={{ item_type|urlencode }}&{% endif %}{% if box_str %}box={{ box_str }}&{% endif %}{% if folder_str %}folder={{ folder_str }}&{% endif %}{% if analysis_model %}model={{ analysis_model }}&{% endif %}{% if language %}lang={{ language }}&{% endif %}{% for t in tags %}tag={{ t|urlencode }}&{% endfor %}">×</a>
+            </span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="results-header">
+            <span class="results-count">
+                {% if total > 0 %}
+                Showing {{ (page - 1) * per_page + 1 }}-{{ [page * per_page, total]|min }} of {{ total }} results
+                {% else %}
+                No results found
+                {% endif %}
+            </span>
+
+            <div class="sort-controls">
+                <form method="get" action="{{ url_prefix }}/" style="display: flex; gap: 10px; align-items: center;">
+                    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+                    {% if series %}<input type="hidden" name="series" value="{{ series }}">{% endif %}
+                    {% if item_type %}<input type="hidden" name="type" value="{{ item_type }}">{% endif %}
+                    {% if date_from %}<input type="hidden" name="from" value="{{ date_from }}">{% endif %}
+                    {% if date_to %}<input type="hidden" name="to" value="{{ date_to }}">{% endif %}
+                    {% if box_str %}<input type="hidden" name="box" value="{{ box_str }}">{% endif %}
+                    {% if folder_str %}<input type="hidden" name="folder" value="{{ folder_str }}">{% endif %}
+                    {% if analysis_model %}<input type="hidden" name="model" value="{{ analysis_model }}">{% endif %}
+                    {% if language %}<input type="hidden" name="lang" value="{{ language }}">{% endif %}
+                    {% for t in tags %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
+
+                    <label>Sort by:</label>
+                    <select name="sort" class="filter-select" onchange="this.form.submit()">
+                        <option value="date_sort" {% if sort_by == 'date_sort' %}selected{% endif %}>Date</option>
+                        <option value="title" {% if sort_by == 'title' %}selected{% endif %}>Title</option>
+                        <option value="series" {% if sort_by == 'series' %}selected{% endif %}>Series</option>
+                        <option value="archive_order" {% if sort_by == 'archive_order' %}selected{% endif %}>Archive Order (Box/Folder)</option>
+                    </select>
+                    <select name="order" class="filter-select" onchange="this.form.submit()">
+                        <option value="DESC" {% if sort_order == 'DESC' %}selected{% endif %}>Descending</option>
+                        <option value="ASC" {% if sort_order == 'ASC' %}selected{% endif %}>Ascending</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        {% for paper in results %}
+        <div class="result-card" data-paper-id="{{ paper.id }}">
+            <div class="result-card-layout">
+                {% if paper.thumbnail_url %}
+                <div class="result-thumbnail">
+                    <a href="{{ url_prefix }}/paper/{{ paper.id }}">
+                        <img src="{{ paper.thumbnail_url }}" alt="Thumbnail" loading="lazy">
+                    </a>
+                </div>
+                {% endif %}
+                <div class="result-content">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <h2 style="flex: 1;"><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title }}</a></h2>
+                        <button class="star-btn {% if paper.starred %}starred{% endif %}" onclick="toggleStar({{ paper.id }}, this)" title="{% if paper.starred %}Unstar{% else %}Star{% endif %}">
+                            {% if paper.starred %}★{% else %}☆{% endif %}
+                        </button>
+                    </div>
+                    <div class="result-meta">
+                {% if paper.date %}
+                <span>{{ paper.date }}</span>
+                {% endif %}
+                {% if paper.series %}
+                <span><span class="tag">{{ paper.series }}</span></span>
+                {% endif %}
+                {% if paper.item_type %}
+                <span><span class="tag">{{ paper.item_type }}</span></span>
+                {% endif %}
+                {% if paper.box_number %}
+                <span><span class="tag archive-tag">Box {{ paper.box_number }} Folder {{ paper.folder_number }}{% if paper.bundle_number %} Bundle {{ paper.bundle_number }}{% endif %}{% if paper.document_number %} #{{ paper.document_number }}{% endif %}</span></span>
+                <span class="browse-links">
+                    <a href="{{ url_prefix }}/?box={{ paper.box_number }}&folder={{ paper.folder_number }}&sort=archive_order&order=ASC" class="browse-btn">Browse Folder</a>
+                    <a href="{{ url_prefix }}/?box={{ paper.box_number }}&sort=archive_order&order=ASC" class="browse-btn">Browse Box</a>
+                </span>
+                {% endif %}
+                {% if paper.language and paper.language != 'English' %}
+                <span><span class="tag lang-tag">{{ paper.language }}</span></span>
+                {% endif %}
+            </div>
+            {% if paper.summary %}
+            <p class="paper-summary">
+                {{ paper.summary }}
+                {% if paper.analysis_model %}
+                <span class="model-badge model-{{ paper.analysis_model }}">{{ paper.analysis_model }}</span>
+                {% endif %}
+            </p>
+            {% endif %}
+            {% if paper.tags %}
+            <div class="paper-tags">
+                {% for tag in paper.tags | fromjson %}
+                <a href="{{ url_prefix }}/?tag={{ tag|urlencode }}" class="tag-link">{{ tag }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if paper.text_content %}
+            <div class="text-preview">
+                <p class="text-preview-content">{{ paper.text_content | highlight_snippet(query) }}</p>
+                <button class="view-full-text-btn" onclick="toggleFullText(this, {{ paper.id }})">View full text</button>
+                <div class="full-text-content" id="full-text-{{ paper.id }}" style="display: none;">
+                    <pre>{{ paper.text_content }}</pre>
+                </div>
+            </div>
+            {% endif %}
+            <p class="cmu-link">
+                <a href="{{ url_prefix }}/paper/{{ paper.id }}">View Details →</a>
+                <span style="margin: 0 8px; color: var(--text-muted);">|</span>
+                {% if paper.box_number and paper.folder_number and paper.bundle_number and paper.document_number %}
+                <a href="http://iiif.library.cmu.edu/file/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}.pdf" target="_blank">View PDF →</a>
+                <span style="margin: 0 8px; color: var(--text-muted);">|</span>
+                {% endif %}
+                <a href="{{ paper.url }}" target="_blank">View on CMU.edu →</a>
+            </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% set base_url = "?" %}
+            {% if query %}{% set base_url = base_url ~ "q=" ~ query|urlencode ~ "&" %}{% endif %}
+            {% if series %}{% set base_url = base_url ~ "series=" ~ series|urlencode ~ "&" %}{% endif %}
+            {% if item_type %}{% set base_url = base_url ~ "type=" ~ item_type|urlencode ~ "&" %}{% endif %}
+            {% if date_from %}{% set base_url = base_url ~ "from=" ~ date_from ~ "&" %}{% endif %}
+            {% if date_to %}{% set base_url = base_url ~ "to=" ~ date_to ~ "&" %}{% endif %}
+            {% if box_str %}{% set base_url = base_url ~ "box=" ~ box_str ~ "&" %}{% endif %}
+            {% if folder_str %}{% set base_url = base_url ~ "folder=" ~ folder_str ~ "&" %}{% endif %}
+            {% if analysis_model %}{% set base_url = base_url ~ "model=" ~ analysis_model ~ "&" %}{% endif %}
+            {% if language %}{% set base_url = base_url ~ "lang=" ~ language ~ "&" %}{% endif %}
+            {% for t in tags %}{% set base_url = base_url ~ "tag=" ~ t|urlencode ~ "&" %}{% endfor %}
+            {% if search_mode and search_mode != 'normal' %}{% set base_url = base_url ~ "mode=" ~ search_mode ~ "&" %}{% endif %}
+            {% set base_url = base_url ~ "sort=" ~ sort_by ~ "&order=" ~ sort_order %}
+
+            {% if page > 1 %}
+            <a href="{{ base_url }}&page={{ page - 1 }}">← Prev</a>
+            {% else %}
+            <span class="disabled">← Prev</span>
+            {% endif %}
+
+            {% set start_page = [1, page - 2]|max %}
+            {% set end_page = [total_pages, page + 2]|min %}
+
+            {% if start_page > 1 %}
+            <a href="{{ base_url }}&page=1">1</a>
+            {% if start_page > 2 %}<span>...</span>{% endif %}
+            {% endif %}
+
+            {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+            <span class="current">{{ p }}</span>
+            {% else %}
+            <a href="{{ base_url }}&page={{ p }}">{{ p }}</a>
+            {% endif %}
+            {% endfor %}
+
+            {% if end_page < total_pages %}
+            {% if end_page < total_pages - 1 %}<span>...</span>{% endif %}
+            <a href="{{ base_url }}&page={{ total_pages }}">{{ total_pages }}</a>
+            {% endif %}
+
+            {% if page < total_pages %}
+            <a href="{{ base_url }}&page={{ page + 1 }}">Next →</a>
+            {% else %}
+            <span class="disabled">Next →</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </main>
+</div>
+<script>
+const urlPrefix = '{{ url_prefix }}';
+function toggleStar(paperId, btn) {
+    const isStarred = btn.classList.contains('starred');
+    const url = isStarred ? `${urlPrefix}/api/unstar/${paperId}` : `${urlPrefix}/api/star/${paperId}`;
+
+    fetch(url, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                btn.classList.toggle('starred');
+                btn.innerHTML = data.starred ? '★' : '☆';
+                btn.title = data.starred ? 'Unstar' : 'Star';
+            }
+        });
+}
+
+function toggleFullText(btn, paperId) {
+    const fullTextDiv = document.getElementById('full-text-' + paperId);
+    const previewContent = btn.previousElementSibling;
+
+    if (fullTextDiv.style.display === 'none') {
+        fullTextDiv.style.display = 'block';
+        previewContent.style.display = 'none';
+        btn.textContent = 'Hide full text';
+    } else {
+        fullTextDiv.style.display = 'none';
+        previewContent.style.display = 'block';
+        btn.textContent = 'View full text';
+    }
+}
+</script>
+{% endblock %}

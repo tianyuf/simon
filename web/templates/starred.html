@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Starred Papers - Herbert Simon Papers{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <p style="margin-bottom: 20px;">
+        <a href="{{ url_prefix }}/" style="color: var(--primary); text-decoration: none;">← Back to search</a>
+    </p>
+
+    <h1 style="font-size: 1.8rem; margin-bottom: 10px;">Starred Papers</h1>
+    <p style="color: var(--text-muted); margin-bottom: 20px;">
+        Your personal collection of saved papers ({{ papers|length }} items)
+    </p>
+
+    {% if papers %}
+    {% for paper in papers %}
+    <div class="result-card" data-paper-id="{{ paper.id }}">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <h2 style="flex: 1;"><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title }}</a></h2>
+            <button class="star-btn starred" onclick="toggleStar({{ paper.id }}, this)" title="Unstar">
+                ★
+            </button>
+        </div>
+        <div class="result-meta">
+            {% if paper.date %}
+            <span>{{ paper.date }}</span>
+            {% endif %}
+            {% if paper.series %}
+            <span><span class="tag">{{ paper.series }}</span></span>
+            {% endif %}
+            {% if paper.item_type %}
+            <span><span class="tag">{{ paper.item_type }}</span></span>
+            {% endif %}
+            {% if paper.box_number %}
+            <span><span class="tag archive-tag">Box {{ paper.box_number }} Folder {{ paper.folder_number }}{% if paper.bundle_number %} Bundle {{ paper.bundle_number }}{% endif %}{% if paper.document_number %} #{{ paper.document_number }}{% endif %}</span></span>
+            <span class="browse-links">
+                <a href="{{ url_prefix }}/?box={{ paper.box_number }}&folder={{ paper.folder_number }}&sort=archive_order&order=ASC" class="browse-btn">Browse Folder</a>
+                <a href="{{ url_prefix }}/?box={{ paper.box_number }}&sort=archive_order&order=ASC" class="browse-btn">Browse Box</a>
+            </span>
+            {% endif %}
+            {% if paper.text_content %}
+            <span><span class="tag ocr-tag">OCR'd</span></span>
+            {% endif %}
+        </div>
+
+        {% if paper.text_content %}
+        <div class="text-preview">
+            <strong>Text preview:</strong>
+            <p>{{ paper.text_content[:200]|replace('\n', ' ') }}{% if paper.text_content|length > 200 %}...{% endif %}</p>
+        </div>
+        {% endif %}
+
+        <p class="cmu-link">
+            {% if paper.box_number and paper.folder_number and paper.bundle_number and paper.document_number %}
+            <a href="http://iiif.library.cmu.edu/file/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}.pdf" target="_blank">View PDF →</a>
+            <span style="margin: 0 8px; color: var(--text-muted);">|</span>
+            {% endif %}
+            <a href="{{ paper.url }}" target="_blank">View on CMU.edu →</a>
+        </p>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="result-card">
+        <p style="color: var(--text-muted); text-align: center; padding: 40px;">
+            No starred papers yet. Click the ☆ button on any paper to add it to your list.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .star-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #ccc;
+        padding: 5px 10px;
+        transition: color 0.2s, transform 0.2s;
+    }
+
+    .star-btn:hover {
+        transform: scale(1.2);
+    }
+
+    .star-btn.starred {
+        color: #f5a623;
+    }
+
+    .text-preview {
+        margin-top: 10px;
+        padding: 10px;
+        background: var(--bg);
+        border-radius: 4px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .text-preview p {
+        margin-top: 5px;
+        line-height: 1.5;
+    }
+
+    .ocr-tag {
+        background: #2e7d32;
+        color: white;
+    }
+</style>
+
+<script>
+const urlPrefix = '{{ url_prefix }}';
+function toggleStar(paperId, btn) {
+    const isStarred = btn.classList.contains('starred');
+    const url = isStarred ? `${urlPrefix}/api/unstar/${paperId}` : `${urlPrefix}/api/star/${paperId}`;
+
+    fetch(url, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (isStarred) {
+                    // Remove the card when unstarred from starred page
+                    const card = btn.closest('.result-card');
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(100px)';
+                    card.style.transition = 'all 0.3s';
+                    setTimeout(() => card.remove(), 300);
+                }
+            }
+        });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+[Unit]
+Description=Simon Papers Flask Application
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/tfang.info/html/simon
+
+# Environment variables
+Environment="PATH=/var/www/tfang.info/html/simon/venv/bin"
+
+# Gunicorn command
+ExecStart=/var/www/tfang.info/html/simon/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:8001 \
+    --env URL_PREFIX=/simon \
+    wsgi:application
+
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

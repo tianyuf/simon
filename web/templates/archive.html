@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Archive Browser - Herbert Simon Papers{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <p style="margin-bottom: 20px;">
+        <a href="{{ url_prefix }}/" style="color: var(--primary); text-decoration: none;">← Back to search</a>
+    </p>
+
+    <h1 style="font-size: 1.8rem; margin-bottom: 10px;">Archive Structure</h1>
+    <p style="color: var(--text-muted); margin-bottom: 30px;">
+        Browse Herbert Simon's papers as they are organized in the physical archive at CMU.
+        Click on a box to see its folders, or click folder counts to view documents.
+    </p>
+
+    <div class="archive-grid">
+        {% for box_num, info in structure|dictsort %}
+        <div class="archive-box">
+            <div class="box-header">
+                <h2>Box {{ box_num }}</h2>
+                <span class="box-count">{{ info.total }} items</span>
+            </div>
+            {% if summaries.boxes.get(box_num) %}
+            <div class="box-summary">
+                {{ summaries.boxes[box_num].summary }}
+            </div>
+            {% endif %}
+            <div class="folder-list">
+                {% for folder_num, count in info.folders|dictsort %}
+                <div class="folder-item-wrapper">
+                    <a href="{{ url_prefix }}/?box={{ box_num }}&folder={{ folder_num }}&sort=archive_order&order=ASC" class="folder-item">
+                        <span class="folder-name">Folder {{ folder_num }}</span>
+                        <span class="folder-count">{{ count }}</span>
+                    </a>
+                    {% set folder_key = (box_num, folder_num) %}
+                    {% if summaries.folders.get(folder_key) %}
+                    <div class="folder-summary">{{ summaries.folders[folder_key].summary }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{{ url_prefix }}/?box={{ box_num }}&sort=archive_order&order=ASC" class="view-all-link">
+                View all {{ info.total }} items in Box {{ box_num }} →
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .archive-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .archive-box {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .box-header {
+        background: var(--primary);
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .box-header h2 {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    .box-count {
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }
+
+    .folder-list {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .folder-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 10px;
+        text-decoration: none;
+        color: var(--text);
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .folder-item:hover {
+        background: var(--bg);
+    }
+
+    .folder-name {
+        font-size: 0.9rem;
+    }
+
+    .folder-count {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        background: var(--bg);
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+
+    .view-all-link {
+        display: block;
+        text-align: center;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--primary);
+        text-decoration: none;
+        font-size: 0.9rem;
+        border-top: 1px solid var(--border);
+    }
+
+    .view-all-link:hover {
+        background: #e8e8e8;
+    }
+
+    .box-summary {
+        padding: 12px 15px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        background: linear-gradient(to bottom, rgba(var(--primary-rgb, 59, 130, 246), 0.05), transparent);
+        border-bottom: 1px solid var(--border);
+        line-height: 1.5;
+    }
+
+    .folder-item-wrapper {
+        border-bottom: 1px solid var(--border);
+    }
+
+    .folder-item-wrapper:last-child {
+        border-bottom: none;
+    }
+
+    .folder-summary {
+        padding: 6px 10px 10px 10px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.4;
+        background: var(--bg);
+        margin-top: -4px;
+    }
+</style>
+{% endblock %}
