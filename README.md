@@ -1,10 +1,12 @@
 # Fang’s Searchable Simon Papers Archive
 
-A research archive system for [Herbert A. Simon's papers](https://digitalcollections.library.cmu.edu/) from the Carnegie Mellon University Digital Collections. Scrapes, processes, and provides full-text search over thousands of archival documents including correspondence, manuscripts, reports, and other materials.
+A research archive system for the [Herbert A. Simon papers](https://digitalcollections.library.cmu.edu/) from the Carnegie Mellon University Digital Collections. Scrapes, processes, and provides full-text search over thousands of archival documents including correspondence, manuscripts, reports, and other materials.
 
-The pipeline downloads paper metadata and PDFs from CMU, extracts text via OCR, generates AI-powered summaries and tags, and serves everything through a web interface with faceted search and an archive browser.
+The pipeline downloads paper metadata and PDFs from the CMU Library, extracts text via OCR, generates AI-powered summaries and tags, and serves everything through a web interface with faceted search and an archive browser.
 
 This was built with Claude Code.
+
+![demo](demo.png)
 
 ## Setup
 
