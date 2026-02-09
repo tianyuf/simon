@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a research archive system for Herbert Simon's papers from CMU Digital Collections. It scrapes, processes, and provides search capabilities for Simon's papers including OCR text extraction, AI-powered analysis, and semantic search.
+This is a research archive system for Herbert Simon's papers from CMU Digital Collections. It scrapes, processes, and provides search capabilities for Simon's papers including OCR text extraction and AI-powered analysis.
 
 ## Common Commands
 
@@ -30,9 +30,6 @@ python run.py stream-ocr [--limit N] [--delay 0.5] [--verbose]
 # Analyze papers with AI (extract summaries, tags, language)
 python run.py analyze [--limit N] [--delay 0.5] [--verbose] [--stats]
 
-# Semantic search using DeepSeek Reasoner
-python run.py search "query" [--max-candidates 150] [--prefilter keyword] [--verbose]
-
 # Show database statistics
 python run.py stats
 ```
@@ -45,7 +42,6 @@ python run.py stats
 2. **PDF Download** (`scraper/download_pdfs.py`): Downloads PDFs using box/folder/bundle/document identifiers
 3. **OCR** (`scraper/ocr_pdfs.py`, `scraper/stream_ocr.py`): Extracts text using PyMuPDF or Tesseract
 4. **Analysis** (`scraper/analyze_papers.py`): Uses DeepSeek API (with Anthropic fallback) to generate summaries, tags, and detect language
-5. **Search** (`scraper/semantic_search.py`): DeepSeek Reasoner for semantic search; (`scraper/research_assistant.py`): Claude Sonnet for Q&A
 
 ### Database
 
@@ -63,14 +59,13 @@ Flask app (`web/app.py`) providing:
 - Search modes: normal FTS5, fuzzy (LIKE with wildcards), regex
 - Archive browser by physical structure
 - Paper detail view with PDF viewing
-- Research assistant chat (Claude Sonnet)
 - Star/bookmark functionality
 
 ## Environment Variables
 
 Required in `.env`:
-- `DEEPSEEK_API_KEY`: For analysis and semantic search
-- `ANTHROPIC_API_KEY`: For research assistant and analysis fallback
+- `DEEPSEEK_API_KEY`: For analysis
+- `ANTHROPIC_API_KEY`: For analysis fallback
 
 ## Key Patterns
 

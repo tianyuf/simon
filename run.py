@@ -59,15 +59,6 @@ def main():
     analyze_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed progress")
     analyze_parser.add_argument("--stats", action="store_true", help="Show analysis statistics")
 
-    # Semantic search command (DeepSeek Reasoner)
-    search_parser = subparsers.add_parser("search", help="Semantic search using DeepSeek Reasoner")
-    search_parser.add_argument("query", nargs="?", help="Search query (omit for interactive mode)")
-    search_parser.add_argument("--max-candidates", type=int, default=150, help="Max papers to analyze")
-    search_parser.add_argument("--prefilter", "-p", type=str, help="Pre-filter with keyword search first")
-    search_parser.add_argument("--no-text", action="store_true", help="Exclude text content excerpts")
-    search_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed progress and reasoning")
-    search_parser.add_argument("--json", action="store_true", help="Output results as JSON")
-
     args = parser.parse_args()
 
     if args.command == "scrape":
@@ -159,32 +150,6 @@ def main():
                 delay=args.delay,
                 verbose=args.verbose
             )
-
-    elif args.command == "search":
-        from scraper.semantic_search import semantic_search, print_search_results, interactive_search
-        import json as json_module
-
-        if args.query:
-            papers, reasoning = semantic_search(
-                args.query,
-                max_candidates=args.max_candidates,
-                prefilter=args.prefilter,
-                include_text=not args.no_text,
-                verbose=args.verbose
-            )
-
-            if args.json:
-                output = {
-                    "query": args.query,
-                    "reasoning": reasoning,
-                    "count": len(papers),
-                    "results": papers
-                }
-                print(json_module.dumps(output, indent=2, default=str))
-            else:
-                print_search_results(papers, reasoning, args.query)
-        else:
-            interactive_search()
 
     else:
         parser.print_help()
