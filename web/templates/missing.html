@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Missing from Digital Collection - Herbert Simon Papers{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto;">
+    <p style="margin-bottom: 20px;">
+        <a href="{{ url_prefix }}/archive" style="color: var(--primary); text-decoration: none;">&larr; Back to archive</a>
+    </p>
+
+    <h1 style="font-size: 1.8rem; margin-bottom: 10px;">Missing from Digital Collection</h1>
+    <p style="color: var(--text-muted); margin-bottom: 20px;">
+        Folders listed in the CMU Finding Aid that are not yet available in the digital collection.
+    </p>
+
+    <div class="coverage-stats">
+        <div class="stat-card">
+            <div class="stat-number">{{ data.stats.digitized_boxes }}/{{ data.stats.total_boxes }}</div>
+            <div class="stat-label">Boxes digitized</div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: {{ (data.stats.digitized_boxes / data.stats.total_boxes * 100)|round(1) }}%"></div>
+            </div>
+            <div class="stat-pct">{{ (data.stats.digitized_boxes / data.stats.total_boxes * 100)|round(1) }}%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ data.stats.digitized_folders }}/{{ data.stats.total_folders }}</div>
+            <div class="stat-label">Folders digitized</div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill" style="width: {{ (data.stats.digitized_folders / data.stats.total_folders * 100)|round(1) }}%"></div>
+            </div>
+            <div class="stat-pct">{{ (data.stats.digitized_folders / data.stats.total_folders * 100)|round(1) }}%</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ data.stats.missing_folders }}</div>
+            <div class="stat-label">Folders missing</div>
+        </div>
+    </div>
+
+    {% if data.missing_folders_by_box %}
+    <div class="missing-header">
+        <h2 style="font-size: 1.3rem;">Missing Folders by Box ({{ data.stats.missing_folders }} folders)</h2>
+        <div class="expand-controls">
+            <button onclick="toggleAll(true)" class="expand-btn">Expand all</button>
+            <button onclick="toggleAll(false)" class="expand-btn">Collapse all</button>
+        </div>
+    </div>
+    <div class="missing-folders-list">
+        {% for box_num, folders in data.missing_folders_by_box|dictsort %}
+        <div class="missing-folder-box">
+            <div class="missing-folder-box-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <span class="expand-icon">&#9654;</span>
+                <strong>{% if folders[0].is_oversize %}Over-Size {% endif %}Box {{ box_num }}{% if folders[0].box_title %} &mdash; {{ folders[0].box_title }}{% endif %}</strong>
+                {% if folders[0].is_oversize %}<span class="oversize-tag">Over-Size</span>{% endif %}
+                <span class="missing-folder-count">{{ folders|length }} missing</span>
+            </div>
+            <div class="missing-folder-items">
+                {% for folder in folders %}
+                <div class="missing-folder-item">
+                    <span class="ff-num">FF{{ folder.folder_number }}</span>
+                    <span class="ff-desc">{{ folder.title }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleAll(expand) {
+    document.querySelectorAll('.missing-folder-box').forEach(el => {
+        if (expand) {
+            el.classList.add('expanded');
+        } else {
+            el.classList.remove('expanded');
+        }
+    });
+}
+</script>
+
+<style>
+    .coverage-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .stat-number {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--text);
+    }
+
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .stat-bar {
+        height: 6px;
+        background: var(--border);
+        border-radius: 3px;
+        margin-top: 10px;
+        overflow: hidden;
+    }
+
+    .stat-bar-fill {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 3px;
+    }
+
+    .stat-pct {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .missing-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 30px 0 15px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .expand-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .expand-btn {
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--card-bg);
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+
+    .expand-btn:hover {
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    .oversize-tag {
+        font-size: 0.7rem;
+        background: #e0e0e0;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-weight: 400;
+        color: var(--text-muted);
+    }
+
+    .missing-folders-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .missing-folder-box {
+        background: var(--card-bg);
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .missing-folder-box-header {
+        padding: 12px 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        user-select: none;
+    }
+
+    .missing-folder-box-header:hover {
+        background: var(--bg);
+    }
+
+    .expand-icon {
+        font-size: 0.7rem;
+        transition: transform 0.2s;
+        color: var(--text-muted);
+    }
+
+    .missing-folder-box.expanded .expand-icon {
+        transform: rotate(90deg);
+    }
+
+    .missing-folder-count {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        background: var(--bg);
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+
+    .missing-folder-items {
+        display: none;
+        border-top: 1px solid var(--border);
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .missing-folder-box.expanded .missing-folder-items {
+        display: block;
+    }
+
+    .missing-folder-item {
+        padding: 6px 15px 6px 35px;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 10px;
+    }
+
+    .missing-folder-item:last-child {
+        border-bottom: none;
+    }
+
+    .ff-num {
+        color: var(--text-muted);
+        font-weight: 500;
+        white-space: nowrap;
+        min-width: 60px;
+    }
+
+    .ff-desc {
+        color: var(--text);
+        line-height: 1.4;
+    }
+</style>
+{% endblock %}

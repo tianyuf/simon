@@ -93,6 +93,16 @@
                     <option value="fuzzy" {% if search_mode == 'fuzzy' %}selected{% endif %}>Fuzzy</option>
                     <option value="regex" {% if search_mode == 'regex' %}selected{% endif %}>Regex</option>
                 </select>
+                {% if include_coverage and include_coverage != 'all' %}<input type="hidden" name="coverage" value="{{ include_coverage }}">{% endif %}
+                {% if series %}<input type="hidden" name="series" value="{{ series }}">{% endif %}
+                {% if item_type %}<input type="hidden" name="type" value="{{ item_type }}">{% endif %}
+                {% if box_str %}<input type="hidden" name="box" value="{{ box_str }}">{% endif %}
+                {% if folder_str %}<input type="hidden" name="folder" value="{{ folder_str }}">{% endif %}
+                {% if date_from %}<input type="hidden" name="from" value="{{ date_from }}">{% endif %}
+                {% if date_to %}<input type="hidden" name="to" value="{{ date_to }}">{% endif %}
+                {% if analysis_model %}<input type="hidden" name="model" value="{{ analysis_model }}">{% endif %}
+                {% if language %}<input type="hidden" name="lang" value="{{ language }}">{% endif %}
+                {% for t in tags %}<input type="hidden" name="tag" value="{{ t }}">{% endfor %}
                 <button type="submit" class="search-btn">Search</button>
             </form>
 
@@ -132,6 +142,12 @@
                     {% for l, count in facets.languages %}
                     <option value="{{ l }}" {% if language == l %}selected{% endif %}>{{ l }} ({{ count }})</option>
                     {% endfor %}
+                </select>
+
+                <select name="coverage" class="filter-select" onchange="this.form.submit()" form="filter-form">
+                    <option value="digitized" {% if include_coverage == 'digitized' %}selected{% endif %}>Digitized only</option>
+                    <option value="all" {% if include_coverage == 'all' %}selected{% endif %}>All (incl. missing)</option>
+                    <option value="missing" {% if include_coverage == 'missing' %}selected{% endif %}>Missing only</option>
                 </select>
 
                 <input type="text" name="from" class="filter-input" placeholder="From (YYYY)" value="{{ date_from }}" form="filter-form">
@@ -262,7 +278,7 @@
                 {% endif %}
                 <div class="result-content">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <h2 style="flex: 1;"><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title }}</a></h2>
+                        <h2 style="flex: 1;"><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title | folder_label }}</a></h2>
                         <button class="star-btn {% if paper.starred %}starred{% endif %}" onclick="toggleStar({{ paper.id }}, this)" title="{% if paper.starred %}Unstar{% else %}Star{% endif %}">
                             {% if paper.starred %}★{% else %}☆{% endif %}
                         </button>
@@ -286,6 +302,9 @@
                 {% endif %}
                 {% if paper.language and paper.language != 'English' %}
                 <span><span class="tag lang-tag">{{ paper.language }}</span></span>
+                {% endif %}
+                {% if paper.ocr_status == 'not_digitized' %}
+                <span><span class="tag" style="background: #9e9e9e; color: white;">Not digitized</span></span>
                 {% endif %}
             </div>
             {% if paper.summary %}
@@ -314,12 +333,14 @@
             {% endif %}
             <p class="cmu-link">
                 <a href="{{ url_prefix }}/paper/{{ paper.id }}">View Details →</a>
+                {% if paper.ocr_status != 'not_digitized' %}
                 <span style="margin: 0 8px; color: var(--text-muted);">|</span>
                 {% if paper.box_number and paper.folder_number and paper.bundle_number and paper.document_number %}
                 <a href="http://iiif.library.cmu.edu/file/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}/Simon_box{{ '%05d'|format(paper.box_number) }}_fld{{ '%05d'|format(paper.folder_number) }}_bdl{{ '%04d'|format(paper.bundle_number) }}_doc{{ '%04d'|format(paper.document_number) }}.pdf" target="_blank">View PDF →</a>
                 <span style="margin: 0 8px; color: var(--text-muted);">|</span>
                 {% endif %}
                 <a href="{{ paper.url }}" target="_blank">View on CMU.edu →</a>
+                {% endif %}
             </p>
                 </div>
             </div>

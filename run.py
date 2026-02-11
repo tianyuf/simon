@@ -59,6 +59,10 @@ def main():
     analyze_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed progress")
     analyze_parser.add_argument("--stats", action="store_true", help="Show analysis statistics")
 
+    # Load finding aid guide
+    guide_parser = subparsers.add_parser("load-guide", help="Load finding aid data from guide file")
+    guide_parser.add_argument("--guide-path", type=str, default="guide", help="Path to the guide file")
+
     args = parser.parse_args()
 
     if args.command == "scrape":
@@ -150,6 +154,31 @@ def main():
                 delay=args.delay,
                 verbose=args.verbose
             )
+
+    elif args.command == "load-guide":
+        from scraper.parse_guide import parse_guide, print_summary
+        from db import init_db, load_finding_aid, insert_missing_papers
+
+        init_db()
+        print(f"Parsing finding aid from: {args.guide_path}")
+        boxes, folders = parse_guide(args.guide_path)
+        print_summary(boxes, folders)
+
+        print("\nLoading into database...")
+        load_finding_aid(boxes, folders)
+
+        from db import get_missing_from_collection
+        data = get_missing_from_collection()
+        stats = data['stats']
+        print(f"\nDigital Collection Coverage:")
+        print(f"  Boxes: {stats['digitized_boxes']}/{stats['total_boxes']} "
+              f"({stats['missing_boxes']} missing)")
+        print(f"  Folders: {stats['digitized_folders']}/{stats['total_folders']} "
+              f"({stats['missing_folders']} missing)")
+
+        print("\nCreating paper entries for missing folders...")
+        count = insert_missing_papers()
+        print(f"  Inserted {count} placeholder entries into papers table")
 
     else:
         parser.print_help()

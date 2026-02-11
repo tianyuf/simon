@@ -157,6 +157,24 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_archive_summaries_box ON archive_summaries(box_number)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_archive_summaries_type ON archive_summaries(summary_type)")
 
+    # Finding aid table (maps physical archive structure from the CMU finding aid)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS finding_aid (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_type TEXT NOT NULL,
+            box_number INTEGER NOT NULL,
+            folder_number INTEGER,
+            title TEXT,
+            series TEXT,
+            series_number TEXT,
+            is_oversize INTEGER DEFAULT 0,
+            in_digital_collection INTEGER DEFAULT 0,
+            UNIQUE(entry_type, box_number, folder_number)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_finding_aid_box ON finding_aid(box_number)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_finding_aid_type ON finding_aid(entry_type)")
+
     conn.commit()
     conn.close()
     print(f"Database initialized at {DB_PATH}")
@@ -352,7 +370,8 @@ def search_papers(
     use_regex: bool = False,
     analysis_model: Optional[str] = None,
     language: Optional[str] = None,
-    tags: Optional[list[str]] = None
+    tags: Optional[list[str]] = None,
+    include_coverage: str = 'digitized'
 ) -> tuple[list[dict], int]:
     """
     Search papers with filters and full-text search.
@@ -442,6 +461,13 @@ def search_papers(
     if language:
         where_clauses.append("papers.language = ?")
         params.append(language)
+
+    # Coverage filter: digitized only, missing only, or all
+    if include_coverage == 'digitized':
+        where_clauses.append("(papers.ocr_status IS NULL OR papers.ocr_status != 'not_digitized')")
+    elif include_coverage == 'missing':
+        where_clauses.append("papers.ocr_status = 'not_digitized'")
+    # 'all' includes everything
 
     # Exact tag filtering (all specified tags must be present)
     if tags:
@@ -1015,6 +1041,282 @@ def get_related_papers(paper_id: int, limit: int = 10) -> dict:
 
     conn.close()
     return result
+
+
+def load_finding_aid(boxes: dict, folders: dict):
+    """Load parsed finding aid data into the database.
+
+    Args:
+        boxes: dict from parse_guide() mapping box_number -> {title, series, ...}
+        folders: dict from parse_guide() mapping folder_number -> {box_number, description, ...}
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Clear existing data
+    cursor.execute("DELETE FROM finding_aid")
+
+    # Insert box entries
+    for box_num, info in boxes.items():
+        cursor.execute("""
+            INSERT OR REPLACE INTO finding_aid (entry_type, box_number, folder_number, title, series, series_number, is_oversize)
+            VALUES ('box', ?, NULL, ?, ?, ?, ?)
+        """, (box_num, info.get('title'), info.get('series'), info.get('series_number'),
+              1 if info.get('is_oversize') else 0))
+
+    # Insert folder entries
+    for ff_num, info in folders.items():
+        cursor.execute("""
+            INSERT OR REPLACE INTO finding_aid (entry_type, box_number, folder_number, title, series, series_number)
+            VALUES ('folder', ?, ?, ?, ?, ?)
+        """, (info['box_number'], ff_num, info.get('description'), info.get('series'),
+              info.get('series_number')))
+
+    # Cross-reference with papers table to mark what's in the digital collection
+    # Mark boxes that have papers
+    cursor.execute("""
+        UPDATE finding_aid SET in_digital_collection = 1
+        WHERE entry_type = 'box' AND box_number IN (
+            SELECT DISTINCT box_number FROM papers WHERE box_number IS NOT NULL
+        )
+    """)
+
+    # Mark folders that have papers
+    cursor.execute("""
+        UPDATE finding_aid SET in_digital_collection = 1
+        WHERE entry_type = 'folder' AND folder_number IN (
+            SELECT DISTINCT folder_number FROM papers WHERE folder_number IS NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def insert_missing_papers():
+    """Create placeholder paper entries for folders in the finding aid but not in the digital collection.
+
+    Uses negative node_ids (-folder_number) to avoid collision with real papers.
+    Marks them with ocr_status='not_digitized'.
+    Maps series names to match existing database conventions and extracts item_type from descriptions.
+    Returns count of inserted entries.
+    """
+    # Map finding aid series names -> database series names
+    SERIES_MAP = {
+        'Carnegie Mellon Universtiy': 'Carnegie-Mellon University',
+        'Dissertations': 'Student Dissertations',
+    }
+
+    # Map description keywords to item_type
+    ITEM_TYPE_KEYWORDS = {
+        'Article': 'article',
+        'Book Review': 'review',
+        'Book Chapter': 'chapter',
+        'Manuscript': 'article',
+        'Paper': 'article',
+        'Report': 'article',
+        'Cassette Tapes': 'recording',
+        'Computer Discs': 'media',
+        'Photographs': 'photograph',
+        'Diploma': 'award',
+        'Medal': 'award',
+        'Plaque': 'award',
+        'Certificate': 'award',
+    }
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Remove any previously inserted missing-paper placeholders
+    cursor.execute("DELETE FROM papers WHERE ocr_status = 'not_digitized'")
+
+    # Get all folders not in the digital collection
+    cursor.execute("""
+        SELECT folder_number, box_number, title, series
+        FROM finding_aid
+        WHERE entry_type = 'folder' AND in_digital_collection = 0
+        ORDER BY box_number, folder_number
+    """)
+    missing = cursor.fetchall()
+
+    inserted = 0
+    for row in missing:
+        ff_num = row['folder_number']
+        node_id = -ff_num  # negative to avoid collision
+        title = row['title'] or f'FF{ff_num} (not digitized)'
+        box_number = row['box_number']
+        series = SERIES_MAP.get(row['series'], row['series'])
+
+        # Extract date from end of description if present (e.g., "-- 1929" or "-- 1982-1990")
+        date = None
+        date_sort = None
+        if title:
+            date_match = regex_module.search(r'--\s*(\d{4}(?:\s*[-,;]\s*\d{4})?)\s*$', title)
+            if date_match:
+                date = date_match.group(1).strip()
+                date_sort = date[:4]
+
+        # Extract item_type from description parts
+        item_type = None
+        if title:
+            parts = title.split(' -- ')
+            # Check parts (after series name) for known type keywords
+            for part in parts[2:]:
+                part_stripped = part.strip()
+                for keyword, itype in ITEM_TYPE_KEYWORDS.items():
+                    if part_stripped.startswith(keyword):
+                        item_type = itype
+                        break
+                if item_type:
+                    break
+
+        try:
+            cursor.execute("""
+                INSERT INTO papers (node_id, title, date, date_sort, series, item_type,
+                                    box_number, folder_number, ocr_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'not_digitized')
+            """, (node_id, title, date, date_sort, series, item_type, box_number, ff_num))
+            inserted += 1
+        except sqlite3.IntegrityError:
+            pass
+
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+def get_finding_aid_boxes() -> list[dict]:
+    """Get all box entries from the finding aid with titles and digital collection status."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT box_number, title, series, series_number, is_oversize, in_digital_collection
+        FROM finding_aid
+        WHERE entry_type = 'box'
+        ORDER BY box_number
+    """)
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def get_finding_aid_folders(box_number: int) -> list[dict]:
+    """Get folder entries for a specific box from the finding aid."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT folder_number, title, series, series_number, in_digital_collection
+        FROM finding_aid
+        WHERE entry_type = 'folder' AND box_number = ?
+        ORDER BY folder_number
+    """, (box_number,))
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def get_finding_aid_box_titles() -> dict:
+    """Get a mapping of box_number -> {title, series, missing_folders} from the finding aid."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.box_number, b.title, b.series, b.series_number,
+               COUNT(f.id) as total_folders,
+               SUM(CASE WHEN f.in_digital_collection = 0 THEN 1 ELSE 0 END) as missing_folders
+        FROM finding_aid b
+        LEFT JOIN finding_aid f ON f.entry_type = 'folder' AND f.box_number = b.box_number
+        WHERE b.entry_type = 'box'
+        GROUP BY b.box_number
+    """)
+    result = {}
+    for row in cursor.fetchall():
+        result[row['box_number']] = {
+            'title': row['title'],
+            'series': row['series'],
+            'series_number': row['series_number'],
+            'total_folders': row['total_folders'],
+            'missing_folders': row['missing_folders'],
+        }
+    conn.close()
+    return result
+
+
+def get_finding_aid_folder_descriptions() -> dict:
+    """Get a mapping of (box_number, folder_number) -> description from the finding aid."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT box_number, folder_number, title
+        FROM finding_aid
+        WHERE entry_type = 'folder'
+    """)
+    result = {}
+    for row in cursor.fetchall():
+        result[(row['box_number'], row['folder_number'])] = row['title']
+    conn.close()
+    return result
+
+
+def get_missing_from_collection() -> dict:
+    """Get boxes and folders in the finding aid but not in the digital collection.
+
+    Returns dict with:
+        - missing_boxes: list of box dicts not in digital collection
+        - missing_folders_by_box: dict mapping box_number -> list of missing folder dicts
+        - stats: summary counts
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Missing boxes
+    cursor.execute("""
+        SELECT box_number, title, series, series_number, is_oversize
+        FROM finding_aid
+        WHERE entry_type = 'box' AND in_digital_collection = 0
+        ORDER BY box_number
+    """)
+    missing_boxes = [dict(row) for row in cursor.fetchall()]
+
+    # Missing folders grouped by box
+    cursor.execute("""
+        SELECT f.box_number, f.folder_number, f.title, f.series, f.series_number,
+               b.title as box_title, b.is_oversize
+        FROM finding_aid f
+        LEFT JOIN finding_aid b ON b.entry_type = 'box' AND b.box_number = f.box_number
+        WHERE f.entry_type = 'folder' AND f.in_digital_collection = 0
+        ORDER BY f.box_number, f.folder_number
+    """)
+    missing_folders_by_box = {}
+    for row in cursor.fetchall():
+        box = row['box_number']
+        if box not in missing_folders_by_box:
+            missing_folders_by_box[box] = []
+        missing_folders_by_box[box].append(dict(row))
+
+    # Stats
+    cursor.execute("SELECT COUNT(*) FROM finding_aid WHERE entry_type = 'box'")
+    total_boxes = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM finding_aid WHERE entry_type = 'folder'")
+    total_folders = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM finding_aid WHERE entry_type = 'box' AND in_digital_collection = 1")
+    digitized_boxes = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM finding_aid WHERE entry_type = 'folder' AND in_digital_collection = 1")
+    digitized_folders = cursor.fetchone()[0]
+
+    conn.close()
+
+    return {
+        'missing_boxes': missing_boxes,
+        'missing_folders_by_box': missing_folders_by_box,
+        'stats': {
+            'total_boxes': total_boxes,
+            'total_folders': total_folders,
+            'digitized_boxes': digitized_boxes,
+            'digitized_folders': digitized_folders,
+            'missing_boxes': total_boxes - digitized_boxes,
+            'missing_folders': total_folders - digitized_folders,
+        }
+    }
 
 
 if __name__ == "__main__":

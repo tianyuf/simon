@@ -14,7 +14,7 @@ import json
 import re
 from markupsafe import Markup, escape
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort, redirect
-from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, star_paper, unstar_paper, get_starred_papers, get_starred_count, get_archive_summaries, get_related_papers
+from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, star_paper, unstar_paper, get_starred_papers, get_starred_count, get_archive_summaries, get_related_papers, get_finding_aid_box_titles, get_finding_aid_folder_descriptions, get_missing_from_collection
 
 # Import OCR functions
 try:
@@ -33,6 +33,18 @@ def inject_url_prefix():
     import os
     prefix = os.environ.get('URL_PREFIX', '')
     return dict(url_prefix=prefix)
+
+
+@app.template_filter('folder_label')
+def folder_label_filter(description):
+    """Strip 'Simon, Herbert A. -- Series -- ' prefix from finding aid descriptions."""
+    if not description:
+        return ''
+    if description.startswith('Simon'):
+        parts = description.split(' -- ')
+        if len(parts) > 2:
+            return ' -- '.join(parts[2:])
+    return description
 
 
 @app.template_filter('fromjson')
@@ -135,6 +147,9 @@ def index():
     fuzzy = search_mode == 'fuzzy'
     use_regex = search_mode == 'regex'
 
+    # Coverage filter: digitized, missing, all
+    include_coverage = request.args.get('coverage', 'all')
+
     # Parse box/folder as integers
     box_number = int(box_str) if box_str.isdigit() else None
     folder_number = int(folder_str) if folder_str.isdigit() else None
@@ -157,7 +172,8 @@ def index():
         use_regex=use_regex,
         analysis_model=analysis_model if analysis_model else None,
         language=language if language else None,
-        tags=tags_param if tags_param else None
+        tags=tags_param if tags_param else None,
+        include_coverage=include_coverage
     )
 
     # Calculate pagination
@@ -194,7 +210,8 @@ def index():
         search_mode=search_mode,
         analysis_model=analysis_model,
         language=language,
-        tags=tags_param
+        tags=tags_param,
+        include_coverage=include_coverage
     )
 
 
@@ -253,8 +270,17 @@ def api_facets():
 def archive_browser():
     """Browse papers by physical archive structure (box/folder)."""
     structure = get_archive_structure()
-    summaries = get_archive_summaries()
-    return render_template('archive.html', structure=structure, summaries=summaries)
+    box_titles = get_finding_aid_box_titles()
+    folder_descriptions = get_finding_aid_folder_descriptions()
+    return render_template('archive.html', structure=structure,
+                           box_titles=box_titles, folder_descriptions=folder_descriptions)
+
+
+@app.route('/missing')
+def missing_items():
+    """Show items from the finding aid not in the digital collection."""
+    data = get_missing_from_collection()
+    return render_template('missing.html', data=data)
 
 
 @app.route('/api/folders/<int:box_number>')

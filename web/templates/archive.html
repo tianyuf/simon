@@ -12,20 +12,26 @@
     <p style="color: var(--text-muted); margin-bottom: 30px;">
         Browse Herbert Simon's papers as they are organized in the physical archive at CMU.
         Click on a box to see its folders, or click folder counts to view documents.
+        <a href="{{ url_prefix }}/missing" style="color: var(--primary);">View items not yet digitized &rarr;</a>
     </p>
 
     <div class="archive-grid">
         {% for box_num, info in structure|dictsort %}
         <div class="archive-box">
             <div class="box-header">
-                <h2>Box {{ box_num }}</h2>
-                <span class="box-count">{{ info.total }} items</span>
+                <div class="box-header-text">
+                    <h2>Box {{ box_num }}</h2>
+                    {% if box_titles.get(box_num) %}
+                    <div class="box-title-text">{{ box_titles[box_num].title }}</div>
+                    {% endif %}
+                </div>
+                <div class="box-count-area">
+                    <span class="box-count">{{ info.total }} items</span>
+                    {% if box_titles.get(box_num) and box_titles[box_num].missing_folders > 0 %}
+                    <span class="box-missing-label">Missing files</span>
+                    {% endif %}
+                </div>
             </div>
-            {% if summaries.boxes.get(box_num) %}
-            <div class="box-summary">
-                {{ summaries.boxes[box_num].summary }}
-            </div>
-            {% endif %}
             <div class="folder-list">
                 {% for folder_num, count in info.folders|dictsort %}
                 <div class="folder-item-wrapper">
@@ -34,8 +40,8 @@
                         <span class="folder-count">{{ count }}</span>
                     </a>
                     {% set folder_key = (box_num, folder_num) %}
-                    {% if summaries.folders.get(folder_key) %}
-                    <div class="folder-summary">{{ summaries.folders[folder_key].summary }}</div>
+                    {% if folder_descriptions.get(folder_key) %}
+                    <div class="folder-description">{{ folder_descriptions[folder_key] | folder_label }}</div>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -68,17 +74,47 @@
         padding: 15px 20px;
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .box-header-text {
+        flex: 1;
+        min-width: 0;
     }
 
     .box-header h2 {
         font-size: 1.1rem;
         margin: 0;
+        line-height: 1.3;
+    }
+
+    .box-title-text {
+        font-weight: 400;
+        font-size: 0.85rem;
+        opacity: 0.8;
+        margin-top: 2px;
+    }
+
+    .box-count-area {
+        text-align: right;
+        white-space: nowrap;
     }
 
     .box-count {
         font-size: 0.85rem;
         opacity: 0.9;
+        display: block;
+    }
+
+    .box-missing-label {
+        display: inline-block;
+        font-size: 0.7rem;
+        background: rgba(255,255,255,0.2);
+        padding: 1px 7px;
+        border-radius: 3px;
+        margin-top: 4px;
+        opacity: 0.85;
     }
 
     .folder-list {
@@ -128,15 +164,6 @@
         background: #e8e8e8;
     }
 
-    .box-summary {
-        padding: 12px 15px;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        background: linear-gradient(to bottom, rgba(var(--primary-rgb, 59, 130, 246), 0.05), transparent);
-        border-bottom: 1px solid var(--border);
-        line-height: 1.5;
-    }
-
     .folder-item-wrapper {
         border-bottom: 1px solid var(--border);
     }
@@ -145,13 +172,12 @@
         border-bottom: none;
     }
 
-    .folder-summary {
-        padding: 6px 10px 10px 10px;
-        font-size: 0.8rem;
+    .folder-description {
+        padding: 4px 10px 8px 10px;
+        font-size: 0.75rem;
         color: var(--text-muted);
         line-height: 1.4;
-        background: var(--bg);
-        margin-top: -4px;
     }
+
 </style>
 {% endblock %}
