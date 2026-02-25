@@ -16,7 +16,7 @@ import os
 from functools import wraps
 from markupsafe import Markup, escape
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort, redirect, session, flash, url_for
-from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, star_paper, unstar_paper, get_starred_papers, get_starred_count, get_archive_summaries, get_related_papers, get_finding_aid_box_titles, get_finding_aid_folder_descriptions, get_missing_from_collection, get_paper_r2_key
+from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, get_archive_summaries, get_related_papers, get_finding_aid_box_titles, get_finding_aid_folder_descriptions, get_missing_from_collection, get_paper_r2_key
 
 # Import OCR functions
 try:
@@ -428,29 +428,6 @@ def processed_redirect():
 PDF_DIR = Path(__file__).parent.parent / "pdfs"
 
 
-@app.route('/api/star/<int:paper_id>', methods=['POST'])
-def api_star(paper_id):
-    """Star a paper."""
-    if star_paper(paper_id):
-        return jsonify({'success': True, 'starred': True})
-    return jsonify({'success': False, 'error': 'Paper not found'}), 404
-
-
-@app.route('/api/unstar/<int:paper_id>', methods=['POST'])
-def api_unstar(paper_id):
-    """Unstar a paper."""
-    if unstar_paper(paper_id):
-        return jsonify({'success': True, 'starred': False})
-    return jsonify({'success': False, 'error': 'Paper not found'}), 404
-
-
-@app.route('/api/starred')
-def api_starred():
-    """Get all starred papers."""
-    papers = get_starred_papers()
-    return jsonify({'papers': papers, 'count': len(papers)})
-
-
 @app.route('/api/related/<int:paper_id>')
 def api_related(paper_id):
     """Get related papers for a given paper."""
@@ -517,13 +494,6 @@ def api_reocr(paper_id):
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/starred')
-def starred_page():
-    """View starred papers."""
-    papers = get_starred_papers()
-    return render_template('starred.html', papers=papers)
 
 
 @app.route('/pdf/<path:filename>')

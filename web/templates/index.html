@@ -277,12 +277,7 @@
                 </div>
                 {% endif %}
                 <div class="result-content">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <h2 style="flex: 1;"><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title | folder_label }}</a></h2>
-                        <button class="star-btn {% if paper.starred %}starred{% endif %}" onclick="toggleStar({{ paper.id }}, this)" title="{% if paper.starred %}Unstar{% else %}Star{% endif %}">
-                            {% if paper.starred %}★{% else %}☆{% endif %}
-                        </button>
-                    </div>
+                    <h2><a href="{{ url_prefix }}/paper/{{ paper.id }}">{{ paper.title | folder_label }}</a></h2>
                     <div class="result-meta">
                 {% if paper.date %}
                 <span>{{ paper.date }}</span>
@@ -401,21 +396,6 @@
 </div>
 <script>
 const urlPrefix = '{{ url_prefix }}';
-function toggleStar(paperId, btn) {
-    const isStarred = btn.classList.contains('starred');
-    const url = isStarred ? `${urlPrefix}/api/unstar/${paperId}` : `${urlPrefix}/api/star/${paperId}`;
-
-    fetch(url, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                btn.classList.toggle('starred');
-                btn.innerHTML = data.starred ? '★' : '☆';
-                btn.title = data.starred ? 'Unstar' : 'Star';
-            }
-        });
-}
-
 function toggleFullText(btn, paperId) {
     const fullTextDiv = document.getElementById('full-text-' + paperId);
     const previewContent = btn.previousElementSibling;

@@ -454,24 +454,6 @@
             color: #1b5e20;
         }
 
-        .star-btn {
-            background: none;
-            border: none;
-            font-size: 1.3rem;
-            cursor: pointer;
-            color: #ccc;
-            padding: 2px 8px;
-            transition: color 0.2s, transform 0.2s;
-        }
-
-        .star-btn:hover {
-            transform: scale(1.2);
-        }
-
-        .star-btn.starred {
-            color: #f5a623;
-        }
-
         .paper-summary {
             margin-top: 10px;
             color: var(--text-muted);
@@ -832,10 +814,6 @@
             color: #2eaadc;
         }
 
-        body.notion-theme .star-btn {
-            font-size: 1.1rem;
-        }
-
         body.notion-theme .pagination a,
         body.notion-theme .pagination span {
             border: none;
@@ -895,7 +873,6 @@
                 <a href="{{ url_for('archive_browser') }}" style="color: white; text-decoration: none; opacity: 0.9;">Archive</a>
                 <a href="{{ url_for('missing_items') }}" style="color: white; text-decoration: none; opacity: 0.9;">Missing</a>
                 <a href="{{ url_for('analysis_stats') }}" style="color: white; text-decoration: none; opacity: 0.9;">Stats</a>
-                <a href="{{ url_for('starred_page') }}" style="color: white; text-decoration: none; opacity: 0.9;">Starred</a>
             </nav>
         </div>
     </header>
