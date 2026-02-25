@@ -7,13 +7,16 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/tfang.info/html/simon
 
-# Environment variables
+# Environment variables are loaded from .env by the application
 Environment="PATH=/var/www/tfang.info/html/simon/venv/bin"
 
 # Gunicorn command
 ExecStart=/var/www/tfang.info/html/simon/venv/bin/gunicorn \
     --workers 2 \
     --bind 127.0.0.1:8001 \
+    --timeout 120 \
+    --access-logfile /var/log/simon/access.log \
+    --error-logfile /var/log/simon/error.log \
     --env URL_PREFIX=/simon \
     wsgi:application
 

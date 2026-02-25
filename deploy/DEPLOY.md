@@ -1,163 +1,107 @@
-# Deploying Simon Papers to tfang.info/simon/
+# VPS Deployment Guide for Simon Papers
 
-## Prerequisites
+This guide covers deploying the application to `/var/www/tfang.info/html/simon`.
 
-- Ubuntu/Debian VPS with nginx installed
-- Domain pointing to your server (tfang.info)
-- SSH access to the server
-
-## Step 1: Copy files to server
-
-From your local machine:
+## Quick Deploy
 
 ```bash
-rsync -avz --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' \
+# 1. Copy files to server (from local machine)
+# Option A: Copy everything including the database (recommended if you have data)
+rsync -avz --exclude '.git' --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' \
+    --exclude '.env' --exclude 'pdfs' \
     /Users/tmf/code/search/simon_papers/ \
     youruser@tfang.info:/var/www/tfang.info/html/simon/
-```
 
-Then fix ownership on the server:
-```bash
+# Option B: Copy without database (if you want a fresh start on server)
+rsync -avz --exclude '.git' --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' \
+    --exclude '.env' --exclude 'pdfs' --exclude '*.db' \
+    /Users/tmf/code/search/simon_papers/ \
+    youruser@tfang.info:/var/www/tfang.info/html/simon/
+
+# 2. SSH to server and set ownership
 sudo chown -R www-data:www-data /var/www/tfang.info/html/simon
-```
 
-## Step 2: Install system dependencies
-
-SSH into your server and run:
-
-```bash
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv nginx
-
-# For OCR support (optional)
-sudo apt install -y tesseract-ocr poppler-utils
-```
-
-## Step 3: Set up Python environment
-
-```bash
+# 3. Set up Python environment
 cd /var/www/tfang.info/html/simon
-
-# Create virtual environment
 sudo -u www-data python3 -m venv venv
 sudo -u www-data venv/bin/pip install --upgrade pip
 sudo -u www-data venv/bin/pip install -r requirements.txt
-```
 
-## Step 4: Set up the database
+# 4. Create .env file
+sudo -u www-data cp .env.example .env
+sudo -u www-data nano .env  # Edit with your API keys
 
-```bash
-cd /var/www/tfang.info/html/simon
+# 5. Initialize database (skip if you copied it in step 1)
 sudo -u www-data venv/bin/python run.py init
-```
 
-If you have an existing database, copy it:
-```bash
-scp db/simon_papers.db youruser@tfang.info:/var/www/tfang.info/html/simon/db/
-sudo chown www-data:www-data /var/www/tfang.info/html/simon/db/simon_papers.db
-```
-
-## Step 5: Install systemd service
-
-```bash
-sudo cp /var/www/tfang.info/html/simon/deploy/simon-papers.service /etc/systemd/system/
+# 6. Install and start systemd service
+sudo cp deploy/simon-papers.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable simon-papers
 sudo systemctl start simon-papers
 
-# Check status
+# 7. Check status
 sudo systemctl status simon-papers
-```
-
-## Step 6: Configure nginx
-
-Edit your existing nginx site config:
-
-```bash
-sudo nano /etc/nginx/sites-available/tfang.info
-```
-
-Add the location blocks inside your existing `server { }` block:
-
-```nginx
-server {
-    server_name tfang.info;
-    # ... your existing config ...
-
-    # Add these lines:
-    location /simon {
-        proxy_pass http://127.0.0.1:8001;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 120s;
-    }
-
-    location /simon/static {
-        alias /var/www/tfang.info/html/simon/web/static;
-        expires 7d;
-    }
-
-    location /simon/pdf {
-        alias /var/www/tfang.info/html/simon/pdfs;
-        expires 1d;
-    }
-}
-```
-
-Test and reload nginx:
-
-```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-## Step 7: Verify deployment
-
-Visit: https://tfang.info/simon/
-
-## Troubleshooting
-
-### Check service logs
-```bash
 sudo journalctl -u simon-papers -f
 ```
 
-### Restart the service
+## Environment Variables
+
+Create `/var/www/tfang.info/html/simon/.env`:
+
 ```bash
-sudo systemctl restart simon-papers
+# Required for AI analysis
+DEEPSEEK_API_KEY=your_key_here
+ANTHROPIC_API_KEY=your_key_here
+
+# Server config
+HOST=0.0.0.0
+PORT=8001
+URL_PREFIX=/simon
+
+# Optional R2 config
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=simon
+R2_PUBLIC_URL=https://...
 ```
 
-### Test gunicorn manually
+## File Permissions
+
+```bash
+# Restrict .env permissions
+sudo chmod 600 /var/www/tfang.info/html/simon/.env
+sudo chown www-data:www-data /var/www/tfang.info/html/simon/.env
+
+# Ensure database is writable
+sudo chown www-data:www-data /var/www/tfang.info/html/simon/db/simon_papers.db
+```
+
+## Updating the Application
+
 ```bash
 cd /var/www/tfang.info/html/simon
-sudo -u www-data venv/bin/gunicorn --bind 127.0.0.1:8001 --env URL_PREFIX=/simon wsgi:application
-```
 
-### Check nginx error logs
-```bash
-sudo tail -f /var/log/nginx/error.log
-```
+# Pull/copy new code
+git pull  # or rsync from local
 
-### Permission issues
-```bash
-sudo chown -R www-data:www-data /var/www/tfang.info/html/simon
-```
-
-## Updating the application
-
-1. rsync new files to server
-2. Fix permissions and restart:
-```bash
-sudo chown -R www-data:www-data /var/www/tfang.info/html/simon
-sudo systemctl restart simon-papers
-```
-
-If dependencies changed:
-```bash
-cd /var/www/tfang.info/html/simon
+# Update dependencies if needed
 sudo -u www-data venv/bin/pip install -r requirements.txt
+
+# Restart service
 sudo systemctl restart simon-papers
+```
+
+## Troubleshooting
+
+```bash
+# Check logs
+sudo journalctl -u simon-papers -f
+
+# Test gunicorn manually
+sudo -u www-data venv/bin/gunicorn --bind 127.0.0.1:8001 --env URL_PREFIX=/simon wsgi:application
+
+# Check file permissions
+ls -la /var/www/tfang.info/html/simon/
 ```

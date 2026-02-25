@@ -1,10 +1,14 @@
 """Database module for Herbert Simon papers catalog."""
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent / "simon_papers.db"
+# Allow database path to be configured via environment variable
+# Default to local db/simon_papers.db for development
+default_db_path = Path(__file__).parent / "simon_papers.db"
+DB_PATH = Path(os.environ.get('DATABASE_PATH', default_db_path))
 
 
 def get_connection() -> sqlite3.Connection:
@@ -94,6 +98,10 @@ def init_db():
         pass
     try:
         cursor.execute("ALTER TABLE papers ADD COLUMN analysis_model TEXT")  # 'deepseek' or 'anthropic'
+    except sqlite3.OperationalError:
+        pass
+    try:
+        cursor.execute("ALTER TABLE papers ADD COLUMN r2_key TEXT")  # Path in Cloudflare R2 bucket
     except sqlite3.OperationalError:
         pass
 
@@ -661,6 +669,102 @@ def update_local_pdf_path(paper_id: int, local_path: str) -> bool:
     updated = cursor.rowcount > 0
     conn.close()
     return updated
+
+
+def get_papers_for_r2_upload(limit: int = None) -> list[dict]:
+    """Get papers that have local PDFs but haven't been uploaded to R2 yet."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    sql = """
+        SELECT id, local_pdf_path, title, box_number, folder_number, bundle_number, document_number
+        FROM papers
+        WHERE local_pdf_path IS NOT NULL
+          AND local_pdf_path != ''
+          AND (r2_key IS NULL OR r2_key = '')
+        ORDER BY box_number, folder_number, bundle_number, document_number
+    """
+    if limit:
+        sql += f" LIMIT {limit}"
+    cursor.execute(sql)
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def get_papers_for_r2_streaming(limit: int = None) -> list[dict]:
+    """Get papers that have archive info but haven't been uploaded to R2 yet.
+
+    This is for streaming mode - gets papers directly from CMU to R2
+    without requiring local storage. Includes all papers with archive IDs
+    that don't have an r2_key yet.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    sql = """
+        SELECT id, title, box_number, folder_number, bundle_number, document_number
+        FROM papers
+        WHERE box_number IS NOT NULL
+          AND folder_number IS NOT NULL
+          AND bundle_number IS NOT NULL
+          AND document_number IS NOT NULL
+          AND (r2_key IS NULL OR r2_key = '')
+        ORDER BY box_number, folder_number, bundle_number, document_number
+    """
+    if limit:
+        sql += f" LIMIT {limit}"
+    cursor.execute(sql)
+    results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return results
+
+
+def update_r2_key(paper_id: int, r2_key: str) -> bool:
+    """Update the R2 key for a paper after successful upload."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE papers SET r2_key = ? WHERE id = ?", (r2_key, paper_id))
+    conn.commit()
+    updated = cursor.rowcount > 0
+    conn.close()
+    return updated
+
+
+def get_r2_stats() -> dict:
+    """Get statistics about R2 uploads."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Total papers with local PDFs
+    cursor.execute("""
+        SELECT COUNT(*) FROM papers
+        WHERE local_pdf_path IS NOT NULL AND local_pdf_path != ''
+    """)
+    total_with_local = cursor.fetchone()[0]
+
+    # Papers uploaded to R2
+    cursor.execute("""
+        SELECT COUNT(*) FROM papers
+        WHERE r2_key IS NOT NULL AND r2_key != ''
+    """)
+    uploaded_to_r2 = cursor.fetchone()[0]
+
+    conn.close()
+
+    return {
+        'total_with_local': total_with_local,
+        'uploaded_to_r2': uploaded_to_r2,
+        'remaining': total_with_local - uploaded_to_r2
+    }
+
+
+def get_paper_r2_key(paper_id: int) -> Optional[str]:
+    """Get the R2 key for a specific paper."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT r2_key FROM papers WHERE id = ?", (paper_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row['r2_key'] if row else None
 
 
 def get_papers_for_download(limit: int = None) -> list[dict]:

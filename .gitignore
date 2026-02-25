@@ -1,6 +1,47 @@
+# Environment variables (contains secrets)
 .env
+
+# Python
 *.pyc
 __pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Database files
 *.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# PDFs and large files
+pdfs/
+*.pdf
+
+# Logs
+*.log
+logs/
+
+# IDE
 .DS_Store
 .claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Deployment
+*.pem
+*.key
+backup/

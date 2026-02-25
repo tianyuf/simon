@@ -20,7 +20,10 @@ def main():
 
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start the web server")
-    serve_parser.add_argument("--port", type=int, default=5000, help="Port to run on")
+    serve_parser.add_argument("--host", type=str, default=None,
+                             help="Host to bind to (default: 127.0.0.1, env: HOST)")
+    serve_parser.add_argument("--port", type=int, default=None,
+                             help="Port to run on (default: 5000, env: PORT)")
     serve_parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     # Init command
@@ -63,6 +66,16 @@ def main():
     guide_parser = subparsers.add_parser("load-guide", help="Load finding aid data from guide file")
     guide_parser.add_argument("--guide-path", type=str, default="guide", help="Path to the guide file")
 
+    # R2 mirror command
+    r2_parser = subparsers.add_parser("r2-mirror", help="Mirror PDFs to Cloudflare R2")
+    r2_parser.add_argument("--limit", type=int, help="Limit number of PDFs to upload")
+    r2_parser.add_argument("--dry-run", action="store_true", help="Show what would be done without uploading")
+    r2_parser.add_argument("--stats", action="store_true", help="Show R2 mirror statistics")
+    r2_parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed progress")
+    r2_parser.add_argument("--verify", type=int, metavar="PAPER_ID", help="Verify a specific paper's R2 upload")
+    r2_parser.add_argument("--stream", action="store_true", help="Stream PDFs directly from CMU (no local storage)")
+    r2_parser.add_argument("--delay", type=float, default=0.5, help="Delay between uploads in seconds (streaming mode)")
+
     args = parser.parse_args()
 
     if args.command == "scrape":
@@ -83,11 +96,18 @@ def main():
             scrape_and_save(delay=args.delay)
 
     elif args.command == "serve":
+        import os
         from web.app import app
         from db import init_db
         init_db()
-        print(f"Starting server at http://localhost:{args.port}")
-        app.run(debug=args.debug, port=args.port)
+
+        # Get settings from args or environment variables
+        host = args.host or os.environ.get('HOST', '127.0.0.1')
+        port = args.port or int(os.environ.get('PORT', 5000))
+        debug = args.debug or os.environ.get('DEBUG', '').lower() in ('1', 'true', 'yes')
+
+        print(f"Starting server at http://{host}:{port}")
+        app.run(debug=debug, host=host, port=port)
 
     elif args.command == "init":
         from db import init_db
@@ -179,6 +199,23 @@ def main():
         print("\nCreating paper entries for missing folders...")
         count = insert_missing_papers()
         print(f"  Inserted {count} placeholder entries into papers table")
+
+    elif args.command == "r2-mirror":
+        from scraper.r2_mirror import mirror_all_pdfs, get_r2_mirror_stats, verify_r2_upload
+
+        if args.stats:
+            get_r2_mirror_stats()
+        elif args.verify:
+            exists = verify_r2_upload(args.verify)
+            print(f"Paper {args.verify}: {'Found' if exists else 'Not found'} in R2")
+        else:
+            mirror_all_pdfs(
+                limit=args.limit,
+                dry_run=args.dry_run,
+                verbose=args.verbose,
+                stream=args.stream,
+                delay=args.delay
+            )
 
     else:
         parser.print_help()

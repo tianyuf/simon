@@ -12,9 +12,11 @@ load_dotenv(Path(__file__).parent.parent / '.env')
 
 import json
 import re
+import os
+from functools import wraps
 from markupsafe import Markup, escape
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort, redirect
-from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, star_paper, unstar_paper, get_starred_papers, get_starred_count, get_archive_summaries, get_related_papers, get_finding_aid_box_titles, get_finding_aid_folder_descriptions, get_missing_from_collection
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, redirect, session, flash, url_for
+from db import search_papers, get_facets, get_paper_by_id, init_db, get_archive_structure, get_folders_for_box, get_connection, star_paper, unstar_paper, get_starred_papers, get_starred_count, get_archive_summaries, get_related_papers, get_finding_aid_box_titles, get_finding_aid_folder_descriptions, get_missing_from_collection, get_paper_r2_key
 
 # Import OCR functions
 try:
@@ -24,13 +26,47 @@ except ImportError:
     OCR_AVAILABLE = False
     PDF_DIR = None
 
+# Import R2 functions for URL generation
+try:
+    from scraper.r2_mirror import get_r2_url, R2_PUBLIC_URL, R2_ACCOUNT_ID, R2_BUCKET_NAME
+    R2_AVAILABLE = bool(R2_PUBLIC_URL or (R2_ACCOUNT_ID and R2_BUCKET_NAME))
+except ImportError:
+    R2_AVAILABLE = False
+
 app = Flask(__name__)
+
+# Configure session secret key (required for authentication)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+
+# Authentication configuration
+AUTH_USERNAME = os.environ.get('AUTH_USERNAME')
+AUTH_PASSWORD = os.environ.get('AUTH_PASSWORD')
+AUTH_ENABLED = bool(AUTH_USERNAME and AUTH_PASSWORD)
+
+
+def login_required(f):
+    """Decorator to require authentication for a route."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if AUTH_ENABLED and not session.get('logged_in'):
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+@app.context_processor
+def inject_auth_status():
+    """Inject authentication status into all templates."""
+    return dict(
+        auth_enabled=AUTH_ENABLED,
+        logged_in=session.get('logged_in', False),
+        username=session.get('username', None)
+    )
 
 
 @app.context_processor
 def inject_url_prefix():
     """Inject URL prefix into all templates for building URLs."""
-    import os
     prefix = os.environ.get('URL_PREFIX', '')
     return dict(url_prefix=prefix)
 
@@ -266,6 +302,15 @@ def api_facets():
     return jsonify(get_facets())
 
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring."""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'simon-papers'
+    })
+
+
 @app.route('/archive')
 def archive_browser():
     """Browse papers by physical archive structure (box/folder)."""
@@ -493,8 +538,91 @@ def serve_pdf(filename):
     return send_from_directory(directory, file_name, mimetype='application/pdf')
 
 
+@app.route('/pdf-r2/<int:paper_id>')
+def serve_pdf_r2(paper_id):
+    """Serve PDF from Cloudflare R2 if available, otherwise fall back to local.
+
+    This route checks if the paper has been mirrored to R2 and redirects to the
+    R2 URL if available. Otherwise, it falls back to the local PDF.
+    """
+    paper = get_paper_by_id(paper_id)
+    if not paper:
+        abort(404, "Paper not found")
+
+    # Check if available in R2
+    r2_key = get_paper_r2_key(paper_id)
+    if r2_key and R2_AVAILABLE:
+        # Redirect to R2 URL
+        r2_url = get_r2_url(r2_key)
+        return redirect(r2_url, code=302)
+
+    # Fall back to local PDF
+    local_path = paper.get('local_pdf_path')
+    if not local_path:
+        abort(404, "No PDF available for this paper")
+
+    pdf_path = PDF_DIR / local_path
+    if not pdf_path.exists():
+        abort(404, "PDF file not found")
+
+    directory = pdf_path.parent
+    file_name = pdf_path.name
+    return send_from_directory(directory, file_name, mimetype='application/pdf')
+
+
+@app.route('/api/paper/<int:paper_id>/pdf-url')
+def api_pdf_url(paper_id):
+    """Get the best available PDF URL for a paper.
+
+    Returns JSON with:
+    - url: The URL to access the PDF
+    - source: 'r2' if from Cloudflare R2, 'local' if from local storage, 'cmu' if from CMU source
+    - r2_available: Whether the paper is mirrored to R2
+    """
+    paper = get_paper_by_id(paper_id)
+    if not paper:
+        return jsonify({'error': 'Paper not found'}), 404
+
+    response = {
+        'paper_id': paper_id,
+        'r2_available': False,
+        'local_available': False,
+    }
+
+    # Check R2 first
+    r2_key = get_paper_r2_key(paper_id)
+    if r2_key and R2_AVAILABLE:
+        response['url'] = get_r2_url(r2_key)
+        response['source'] = 'r2'
+        response['r2_available'] = True
+        return jsonify(response)
+
+    # Check local
+    local_path = paper.get('local_pdf_path')
+    if local_path:
+        pdf_path = PDF_DIR / local_path
+        if pdf_path.exists():
+            # Build local URL
+            import os
+            prefix = os.environ.get('URL_PREFIX', '')
+            response['url'] = f"{prefix}/pdf/{local_path}"
+            response['source'] = 'local'
+            response['local_available'] = True
+            return jsonify(response)
+
+    # Fall back to CMU source
+    if paper.get('box_number') and paper.get('folder_number') and paper.get('bundle_number') and paper.get('document_number'):
+        doc_id = f"Simon_box{paper['box_number']:05d}_fld{paper['folder_number']:05d}_bdl{paper['bundle_number']:04d}_doc{paper['document_number']:04d}"
+        cmu_url = f"http://iiif.library.cmu.edu/file/{doc_id}/{doc_id}.pdf"
+        response['url'] = cmu_url
+        response['source'] = 'cmu'
+        return jsonify(response)
+
+    return jsonify({'error': 'No PDF available for this paper'}), 404
+
+
 if __name__ == '__main__':
     # Initialize database if needed
     init_db()
 
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=8124)

@@ -35,6 +35,11 @@ from .database import (
     get_finding_aid_box_titles,
     get_finding_aid_folder_descriptions,
     get_missing_from_collection,
+    get_papers_for_r2_upload,
+    get_papers_for_r2_streaming,
+    update_r2_key,
+    get_r2_stats,
+    get_paper_r2_key,
 )
 
 __all__ = [
@@ -74,4 +79,9 @@ __all__ = [
     'get_finding_aid_box_titles',
     'get_finding_aid_folder_descriptions',
     'get_missing_from_collection',
+    'get_papers_for_r2_upload',
+    'get_papers_for_r2_streaming',
+    'update_r2_key',
+    'get_r2_stats',
+    'get_paper_r2_key',
 ]
