@@ -80,6 +80,12 @@ For Cloudflare R2 mirroring:
 - `R2_BUCKET_NAME`: Name of the R2 bucket
 - `R2_PUBLIC_URL` (optional): Custom public URL (e.g., CDN) for serving files
 
+## Performance
+
+- **Facets caching**: `get_facets()` in `db/database.py` is cached in-memory with a 5-minute TTL. The 6 aggregate queries take ~3s cold but 0s from cache. Cache is module-level (`_facets_cache`).
+- **Search results exclude `text_content`**: `search_papers()` selects explicit columns with a `SUBSTR(text_content, 1, 500)` snippet (`text_snippet`) instead of `SELECT *`. Full text is loaded on demand via `/api/paper/<id>/text`.
+- The first request after server restart will be slow (~3s) due to cold facets cache.
+
 ## Key Patterns
 
 - CMU PDF URL format: `https://digitalcollections.library.cmu.edu/files/simon/box{BOX}/fld{FOLDER}/bdl{BUNDLE}/Simon_box{BOX}_fld{FOLDER}_bdl{BUNDLE}_doc{DOC}.pdf`

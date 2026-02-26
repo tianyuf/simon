@@ -510,7 +510,14 @@ def search_papers(
         order_sql = f"{sort_by} {'DESC' if sort_order.upper() == 'DESC' else 'ASC'}"
 
     results_sql = f"""
-        SELECT * FROM papers
+        SELECT id, node_id, title, date, date_sort, series, item_type, url,
+               thumbnail_url, box_number, folder_number, bundle_number,
+               document_number, local_pdf_path, ocr_status, summary, tags,
+               language, analysis_status, analysis_model, r2_key,
+               CASE WHEN text_content IS NOT NULL AND text_content != ''
+                    THEN SUBSTR(text_content, 1, 500)
+                    ELSE NULL END AS text_snippet
+        FROM papers
         WHERE {where_sql}
         ORDER BY {order_sql}
         LIMIT ? OFFSET ?
@@ -524,8 +531,19 @@ def search_papers(
     return results, total_count
 
 
+_facets_cache = None
+_facets_cache_time = 0
+_FACETS_CACHE_TTL = 300  # 5 minutes
+
+
 def get_facets() -> dict:
-    """Get counts for faceted search."""
+    """Get counts for faceted search. Cached for 5 minutes."""
+    global _facets_cache, _facets_cache_time
+    import time
+    now = time.time()
+    if _facets_cache is not None and (now - _facets_cache_time) < _FACETS_CACHE_TTL:
+        return _facets_cache
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -594,7 +612,7 @@ def get_facets() -> dict:
     total = cursor.fetchone()[0]
 
     conn.close()
-    return {
+    result = {
         'series': series,
         'item_types': item_types,
         'years': years,
@@ -603,6 +621,9 @@ def get_facets() -> dict:
         'languages': languages,
         'total': total
     }
+    _facets_cache = result
+    _facets_cache_time = now
+    return result
 
 
 def get_paper_by_id(paper_id: int) -> Optional[dict]:

@@ -317,12 +317,12 @@
                 {% endfor %}
             </div>
             {% endif %}
-            {% if paper.text_content %}
+            {% if paper.text_snippet %}
             <div class="text-preview">
-                <p class="text-preview-content">{{ paper.text_content | highlight_snippet(query) }}</p>
+                <p class="text-preview-content">{{ paper.text_snippet | highlight_snippet(query) }}</p>
                 <button class="view-full-text-btn" onclick="toggleFullText(this, {{ paper.id }})">View full text</button>
                 <div class="full-text-content" id="full-text-{{ paper.id }}" style="display: none;">
-                    <pre>{{ paper.text_content }}</pre>
+                    <pre>Loading...</pre>
                 </div>
             </div>
             {% endif %}
@@ -404,6 +404,14 @@ function toggleFullText(btn, paperId) {
         fullTextDiv.style.display = 'block';
         previewContent.style.display = 'none';
         btn.textContent = 'Hide full text';
+        // Fetch full text on first open
+        const pre = fullTextDiv.querySelector('pre');
+        if (pre.textContent === 'Loading...') {
+            fetch(urlPrefix + '/api/paper/' + paperId + '/text')
+                .then(r => r.json())
+                .then(data => { pre.textContent = data.text || 'No text available'; })
+                .catch(() => { pre.textContent = 'Failed to load text.'; });
+        }
     } else {
         fullTextDiv.style.display = 'none';
         previewContent.style.display = 'block';

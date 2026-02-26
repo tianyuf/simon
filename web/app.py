@@ -428,6 +428,19 @@ def processed_redirect():
 PDF_DIR = Path(__file__).parent.parent / "pdfs"
 
 
+@app.route('/api/paper/<int:paper_id>/text')
+def api_paper_text(paper_id):
+    """Get full text content for a paper (loaded on demand)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT text_content FROM papers WHERE id = ?", (paper_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': 'Paper not found'}), 404
+    return jsonify({'text': row['text_content'] or ''})
+
+
 @app.route('/api/related/<int:paper_id>')
 def api_related(paper_id):
     """Get related papers for a given paper."""
